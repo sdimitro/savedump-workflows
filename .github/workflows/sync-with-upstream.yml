@@ -1,0 +1,16 @@
+on:
+  schedule:
+    - cron:  '0/10 * * * *'
+
+jobs:
+  sync:
+    runs-on: ubuntu-18.04
+    steps:
+      - uses: actions/checkout@v2
+      - uses: sdimitro/actions/sync-with-upstream@master
+        with:
+          upstream-repository: https://github.com/sdimitro/savedump-workflows.git
+          upstream-branch: upstream-master
+          downstream-branch: downstream-master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
