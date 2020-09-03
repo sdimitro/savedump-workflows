@@ -5,10 +5,8 @@ on:
     - cron:  '0 0 * * *'
 
 jobs:
-  #
-  # Verify build and installation.
-  #
   install:
+    name: Verify Build and Installation
     runs-on: ubuntu-18.04
     strategy:
       matrix:
@@ -24,13 +22,12 @@ jobs:
         #
       - run: python3 --version
   #
-  # Verify "pylint" runs successfully.
-  #
   # Note, we need to have "drgn" installed in order to run "pylint".
   # Thus, prior to running "pylint" we have to clone, build, and install
   # the "drgn" from source (there's no package currently available).
   #
   pylint:
+    name: Pylint Checks
     runs-on: ubuntu-18.04
     steps:
       - uses: actions/checkout@v2
@@ -47,10 +44,8 @@ jobs:
       # from Python. Thus the `-d import-error` part.
       #
       - run: pylint -d import-error savedump
-  #
-  # Verify "yapf" runs successfully.
-  #
   yapf:
+    name: Verify Coding Style
     runs-on: ubuntu-18.04
     steps:
       - uses: actions/checkout@v2
@@ -59,8 +54,6 @@ jobs:
           python-version: '3.6'
       - run: python3 -m pip install yapf
       - run: yapf --diff --style google --recursive savedump
-  #
-  # Verify "mypy" runs successfully.
   #
   # Note, we need to have drgn and libkdumpfile installed in order to
   # run "mypy". Thus, prior to running "mypy" we have to clone, build,
@@ -75,6 +68,7 @@ jobs:
   #     libkdumpfile doesn't provide stubs on typeshed.
   #
   mypy:
+    name: Type Checks
     runs-on: ubuntu-18.04
     steps:
       - uses: actions/checkout@v2
@@ -85,11 +79,63 @@ jobs:
       - run: ./.github/scripts/install-drgn.sh
       - run: python3 -m pip install mypy
       - run: python3 -m mypy --strict --allow-untyped-calls --ignore-missing-imports --show-error-codes -p savedump
-  #
-  # Verify that "shfmt" ran successfully against our shell scripts.
-  #
   shfmt:
+    name: Shell Script Format Checks
     runs-on: ubuntu-18.04
     steps:
       - uses: actions/checkout@v2
       - uses: delphix/actions/shfmt@master
+  #
+  # This is the high-level job that depends in all of the
+  # jobs of this workflow and it exists as a convenience
+  # for 2 reasons:
+  #
+  # [1] Make Github Actions more flexible when it comes to
+  #     Github's branch permissions with respect to PR
+  #     checks. An example is requiring having the status
+  #     of job "install (Python 2.6)" marked as successful
+  #     before merging. If we decide to not run this test
+  #     anymore by taking Python version 2.6 out of the
+  #     "install" job matrix, we need to remember to go
+  #     and also update our Github PR checks and uncheck
+  #     the requirement of having "install (Python 2.6)"
+  #     pass before merging. Otherwise, subsequent PRs
+  #     will never be able to land through normal workflows.
+  #
+  # [2] Similarly to Github's configuration, this also
+  #     makes the configuration of bors easier as we do
+  #     not need to list every required job explicitly.
+  #
+  # Having a high-level job that depends on other jobs and
+  # marking that as required in both Github Settings and
+  # bors, makes it easy for us to make changes to the workflow
+  # jobs themselves.
+  #
+  main-workflow-required-test-results:
+    name: Main Workflow Required Test Results
+    #
+    # We want to the job to always run to return an exit
+    # status, regardless if any of its dependencies failed
+    # (in which case it will return error and won't just
+    # be skipped). The reason that we want that is to
+    # ensure that other automation like bors doesn't wait
+    # on this forever.
+    #
+    if: ${{ always() }}
+    needs:
+      - install
+      - pylint
+      - yapf
+      - mypy
+      - shfmt
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check dependency results
+        if: needs.install.result != 'success' ||
+            needs.pylint.result != 'success' ||
+            needs.yapf.result != 'success' ||
+            needs.mypy.result != 'success' ||
+            needs.shfmt.result != 'success'
+        run: exit 1
+      - name: Mark the job as aa success
+        run: exit 0
