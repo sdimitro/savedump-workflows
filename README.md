@@ -1,7 +1,3 @@
 # savedump
 
-JAZZ HANDS!
-
-MORE JAZZ HANDS!
-
-EVEN MORE JAZZ HANDS!
+No more jazz hands!
